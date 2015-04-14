@@ -11,7 +11,11 @@ public class Connect4StrategyB implements InterfaceStrategy {
     
     @Override
     public InterfaceSearchResult getBestMove(InterfacePosition position, InterfaceSearchContext context) {
-        InterfaceSearchResult searchResult = new Connect4SearchResult(); // Return information
+        return negamax(position, context, Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY);
+    }
+    
+    public InterfaceSearchResult negamax(InterfacePosition position, InterfaceSearchContext context, float alpha, float beta) {
+    	InterfaceSearchResult searchResult = new Connect4SearchResult(); // Return information
 
         Integer checkedResult = checkedPositions.get(position.getRawPosition());
         if (checkedResult != null) {
@@ -41,7 +45,7 @@ public class Connect4StrategyB implements InterfaceStrategy {
                              context.getCurrentDepth()   < context.getMinDepthSearchForThisPos()    ) { // No more than min
                             posNew.setPlayer(opponent);
                             context.setCurrentDepth(context.getCurrentDepth()+1);
-                            InterfaceSearchResult opponentResult = getBestMove(posNew,context); // Return information is in opponentContext
+                            InterfaceSearchResult opponentResult = negamax(posNew,context,-beta,-alpha); // Return information is in opponentContext
                             context.setCurrentDepth(context.getCurrentDepth()-1);
                             score = -opponentResult.getBestScoreSoFar();
                             // Note, for player, opponent's best move has negative worth
@@ -82,6 +86,10 @@ public class Connect4StrategyB implements InterfaceStrategy {
                         searchResult.setBestMoveSoFar(iPos, score );
                         if ( score == 1f ) break; // No need to search further if one can definitely win
                     }
+                    alpha = Math.max(alpha, score);
+                    if (alpha >= beta) {
+                    	break; // alpha beta pruning
+                    }
                 }
                 long timeNow = System.nanoTime();
                 if ( context.getMaxSearchTimeForThisPos() - timeNow <= 0 ) {
@@ -99,7 +107,6 @@ public class Connect4StrategyB implements InterfaceStrategy {
         
         return searchResult;
     }
-
 
     public int playRandomlyUntilEnd(InterfacePosition pos, int player) {
     	//strategy for this code: while the position is not an ending position,
