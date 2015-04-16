@@ -88,9 +88,6 @@ public class Connect4StrategyB implements InterfaceStrategy {
 								InterfaceSearchResult opponentResult = negamax(posNew, context, -beta, -alpha);
 								context.setCurrentDepth(context.getCurrentDepth() - 1);
 								score = -opponentResult.getBestScoreSoFar();
-								synchronized (map) {
-									map.put(posNew.getRawPosition(), (int) score);
-								}
 								// Note, for player, opponent's best move has
 								// negative worth
 								// That is because, score = ((probability of
@@ -136,9 +133,6 @@ public class Connect4StrategyB implements InterfaceStrategy {
 									}
 								}
 								score = (numWin - numLose) / total_plays;
-								synchronized (map) {
-									map.put(posNew.getRawPosition(), (int) score);
-								}
 								// score = -uncertaintyPenalty;
 								searchResult.setIsResultFinal(false);
 							}
@@ -181,9 +175,11 @@ public class Connect4StrategyB implements InterfaceStrategy {
 				}
 			}
 
-			// if (searchResult.isResultFinal() && position.getChipCount()%3==1)
-			// // Hash this result
-			// checkedPositions.put(position.getRawPosition(),searchResult.getClassStateCompacted());
+			if (searchResult.isResultFinal() && position.getChipCount() % 3 == 1)
+				// // Hash this result
+				synchronized (map) {
+					map.put(position.getRawPosition(), searchResult.getClassStateCompacted());
+				}
 
 		}
 
