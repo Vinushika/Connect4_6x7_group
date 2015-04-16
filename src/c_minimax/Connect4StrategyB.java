@@ -1,13 +1,22 @@
 package c_minimax;
 
-import java.util.Random;
 import java.util.TreeMap;
 
 //author: Gary Kalmanovich; rights reserved
 
 public class Connect4StrategyB implements InterfaceStrategy {
     TreeMap<Long,Integer> checkedPositions = new TreeMap<Long,Integer>(); // minor slowdown @16.7 million (try mapDB?)
-    Random rand = new Random(); // One can seed with a parameter variable here
+    FastRandomizer rand = new FastRandomizer(); // One can seed with a parameter variable here
+    int[] probability_distribution = new int[]{0,0,1,1,1,1,2,2,2,2,2,2,3,3,3,3,3,3,3,3,4,4,4,4,4,4,5,5,5,5,6,6};
+    // 1/16 for 0
+    // 1/8 for 1
+    // 3/16 for 2
+    // 1/4 for 3 (center)
+    // 3/16 for 4
+    // 1/8 for 5
+    // 1/16 for 6
+    //this is a center-based distribution, adds up to 1, we can use it to get better random games.
+    
     
     @Override
     public InterfaceSearchResult getBestMove(InterfacePosition position, InterfaceSearchContext context) {
@@ -25,7 +34,8 @@ public class Connect4StrategyB implements InterfaceStrategy {
             int player   = position.getPlayer();
             int opponent = 3-player; // There are two players, 1 and 2.
 
-            int  nRandom = rand.nextInt(position.nC());
+            int randomIndex = rand.nextInt(32);
+            int nRandom = probability_distribution[randomIndex];
             float uncertaintyPenalty = .01f;
             
             for ( int iC_raw = 0; iC_raw < position.nC(); iC_raw++) {
@@ -34,6 +44,7 @@ public class Connect4StrategyB implements InterfaceStrategy {
                 InterfaceIterator iPos   = new Connect4Iterator( position.nC(), position.nR() ); iPos.set(iC, 0);
                 int iR = position.nR() - posNew.getChipCount(iPos) - 1;                          iPos.set(iC,iR); 
                 if (iR >= 0) { // The column is not yet full
+                    if (searchResult.getBestMoveSoFar()==null) searchResult.setBestMoveSoFar(iPos, searchResult.getBestScoreSoFar());
                     posNew.setColor(iPos, player);
                     int isWin = posNew.isWinner( iPos ); // iPos
                     float score;
@@ -62,7 +73,7 @@ public class Connect4StrategyB implements InterfaceStrategy {
                         	int numWin = 0;
                         	int numLose = 0;
                         	int numDraws = 0;
-                        	float total_plays = 10.0f; //change this if we ever want to play less or more
+                        	float total_plays = 30.0f; //change this if we ever want to play less or more
                         	for (int i = 0; i < total_plays; i++) {
                         		int winner = playRandomlyUntilEnd(posNew,player);
                         		//ok, we have an end state.
@@ -76,13 +87,14 @@ public class Connect4StrategyB implements InterfaceStrategy {
                         			numDraws++;
                         		}
                         	}
-                            score = (numWin - numLose - numDraws) / total_plays;
+                            score = (numWin - numLose) / total_plays;
 //                            score = -uncertaintyPenalty;
                             searchResult.setIsResultFinal(false);
                         }
                     }
     
-                    if (searchResult.getBestScoreSoFar() <  score ) {
+                    if (searchResult.getBestMoveSoFar()  == null ||
+                    	searchResult.getBestScoreSoFar() <  score ) {
                         searchResult.setBestMoveSoFar(iPos, score );
                         if ( score == 1f ) break; // No need to search further if one can definitely win
                     }
@@ -93,9 +105,19 @@ public class Connect4StrategyB implements InterfaceStrategy {
                 }
                 long timeNow = System.nanoTime();
                 if ( context.getMaxSearchTimeForThisPos() - timeNow <= 0 ) {
-                    System.out.println("Connect4StrategyB:getBestMove(): ran out of time: maxTime("
+                    System.out.println("Connect4Strategy:getBestMove(): ran out of time: maxTime("
                             +context.getMaxSearchTimeForThisPos()+") :time("
                             +timeNow+"): recDepth("+context.getCurrentDepth()+")");
+                    if (context.getCurrentDepth()==0) {
+                        // Revert back to a lesser search
+                        System.out.print("Connect4Strategy: Depth limit of "+context.getMinDepthSearchForThisPos()+" -> ");
+                        context.setMinDepthSearchForThisPos(context.getMinDepthSearchForThisPos()-1);
+                        System.out.println(context.getMinDepthSearchForThisPos());
+                    }
+                    if ( ((Connect4SearchContext)context).getOriginalPlayer() == opponent ) { // TODO: add to interface
+                        searchResult.setBestMoveSoFar(searchResult.getBestMoveSoFar(), 0.95f); // Set to original opponent almost-win
+                    }
+                    searchResult.setIsResultFinal(false);
                     break; // Need to make any move now
                 }
             }
@@ -105,6 +127,19 @@ public class Connect4StrategyB implements InterfaceStrategy {
 
         }
         
+        //if we haven't run out of time yet, then increase the depth
+        long timeLeftInNanoSeconds = context.getMaxSearchTimeForThisPos() - System.nanoTime();
+        if (context.getCurrentDepth()== 0 && !searchResult.isResultFinal() && 
+                timeLeftInNanoSeconds > ((Connect4SearchContext)context).getOriginalTimeLimit()*9/10 ) { // TODO: add to interface
+            System.out.print("Connect4StrategyB: Depth limit of "+context.getMinDepthSearchForThisPos()+" -> ");
+            context.setMinDepthSearchForThisPos(context.getMinDepthSearchForThisPos()+1);
+            System.out.println(context.getMinDepthSearchForThisPos());
+            InterfaceSearchResult anotherResult = getBestMove(position,context);
+            if (anotherResult.getBestScoreSoFar() > searchResult.getBestScoreSoFar()) {
+                searchResult.setBestMoveSoFar(anotherResult.getBestMoveSoFar(), anotherResult.getBestScoreSoFar());
+                searchResult.setIsResultFinal(anotherResult.isResultFinal());
+            }
+        }
         return searchResult;
     }
 
@@ -124,7 +159,8 @@ public class Connect4StrategyB implements InterfaceStrategy {
     		int final_iR = -1;
             InterfaceIterator iPos   = new Connect4Iterator( posNew.nC(), posNew.nR() );
     		while (!isFillable) {
-                int  nRandom = rand.nextInt(posNew.nC()); //generate random integer for column
+                int randomIndex = rand.nextInt(32); //generate random integer for column
+                int nRandom = probability_distribution[randomIndex];
                 iPos.set(nRandom, 0); //check the first row associated to the column
                 int iR = posNew.nR() - posNew.getChipCount(iPos) - 1; //see if the column isn't full           
                 iPos.set(nRandom,iR);
@@ -154,5 +190,22 @@ public class Connect4StrategyB implements InterfaceStrategy {
     public InterfaceSearchContext getContext() {
         // Not used in this strategy
         return null;
+    }
+    
+    public class FastRandomizer {
+    	long seed = System.nanoTime(); //spawned at launch
+    	
+    	/**
+    	 * Gets a number in the range (0,max_exclusive), exclusive
+    	 * @param max_exclusive
+    	 * @return
+    	 */
+    	public int nextInt(int max_exclusive) {
+    		seed ^= (seed << 21);
+    		seed ^= (seed >>> 35);
+    		seed ^= (seed <<4);
+    		//use Math.abs because Java is dumb and doesn't do unsigned longs
+    		return (int) Math.abs(seed % max_exclusive);
+    	}
     }
 }

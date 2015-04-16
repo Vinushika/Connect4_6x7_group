@@ -17,31 +17,30 @@ public class Connect4Control implements InterfaceControl, ThreadCompleteListener
     private InterfaceStrategy player1Strategy = null;// new Connect4Strategy();// 
     private InterfaceStrategy player2Strategy = null;// new Connect4Strategy();// 
     private boolean isMoveBlockedByCalculation = false;
+    private int preferedMinDepthPlayer1 = 5; // set to 5 again in resetGame() 
+    private int preferedMinDepthPlayer2 = 5; // set to 5 again in resetGame()
 
     @Override
     public void onMove() { // Control is notified of a player (real or automated) move
         position.setPlayer( currentPlayer );
         Connect4SearchContext context = new Connect4SearchContext();
-        context.setMaxSearchTimeForThisPos(System.nanoTime() + 2000000000L);// 2 seconds (in nanoseconds) from now
-        context.setMaxDepthSearchForThisPos(player1Strategy instanceof Connect4StrategyB ? 10 : 15); // Search no more than ## moves deep
-        context.setMinDepthSearchForThisPos(player1Strategy instanceof Connect4StrategyB ? 4 : 6); // Search no less than ## moves deep
+        context.setOriginalPlayer(currentPlayer);
+        context.setMaxSearchTimeForThisPos(2000000000L);// 2 seconds (in nanoseconds) from now
+        context.setMaxDepthSearchForThisPos( 15 ); // Search no more than ## moves deep
         if ( currentPlayer == 1 ) {
             if (player1Strategy != null && !isBlockManualMove()) { // isStrategy and game not over
+                context.setMinDepthSearchForThisPos(  preferedMinDepthPlayer1 ); // Search no less than ## moves deep
                 isMoveBlockedByCalculation = true;
                 NotifyingThread thread = new ThreadStrategy(player1Strategy, position, context);
                 thread.addListener(this); // add ourselves as a listener
                 thread.start();           // Start the Thread
             }
         }
-        //create a different one for here
-        Connect4SearchContext player2context = new Connect4SearchContext();
-        player2context.setMaxSearchTimeForThisPos(System.nanoTime() + 2000000000L);// 2 seconds (in nanoseconds) from now
-        player2context.setMaxDepthSearchForThisPos( player2Strategy instanceof Connect4StrategyB ? 10: 15 ); // Search no more than ## moves deep
-        player2context.setMinDepthSearchForThisPos(  player2Strategy instanceof Connect4StrategyB ? 4 : 6 ); // Search no less than ## moves deep
         if ( currentPlayer == 2 ) {
             if (player2Strategy != null && !isBlockManualMove()) { // isStrategy and game not over
+                context.setMinDepthSearchForThisPos(  preferedMinDepthPlayer2 ); // Search no less than ## moves deep
                 isMoveBlockedByCalculation = true;
-                NotifyingThread thread = new ThreadStrategy(player2Strategy, position, player2context);
+                NotifyingThread thread = new ThreadStrategy(player2Strategy, position, context);
                 thread.addListener(this); // add ourselves as a listener
                 thread.start();           // Start the Thread
             }
@@ -62,6 +61,8 @@ public class Connect4Control implements InterfaceControl, ThreadCompleteListener
     public void resetGame() {
         position.reset();
         currentPlayer = 1;
+        preferedMinDepthPlayer1 = 5; // set to what was in constructor
+        preferedMinDepthPlayer2 = 5; // set to what was in constructor
     }
 
     @Override
@@ -105,7 +106,14 @@ public class Connect4Control implements InterfaceControl, ThreadCompleteListener
         thread.interrupt();
         
         view.performMove(0, 0, iC, iR, 0); // 0 references is not used in this view
-        
+
+        InterfaceSearchContext context = ((ThreadStrategy)thread).getContext();
+        if ( ((Connect4SearchContext)context).getOriginalPlayer() == 1 ) { // TODO: fix Connect4SearchContext cast
+            preferedMinDepthPlayer1 = context.getMinDepthSearchForThisPos();
+        } else {
+            preferedMinDepthPlayer2 = context.getMinDepthSearchForThisPos();
+        }
+
         isMoveBlockedByCalculation = false;
     }
 }

@@ -30,6 +30,7 @@ public class Connect4Strategy implements InterfaceStrategy {
                 InterfaceIterator iPos   = new Connect4Iterator( position.nC(), position.nR() ); iPos.set(iC, 0);
                 int iR = position.nR() - posNew.getChipCount(iPos) - 1;                          iPos.set(iC,iR); 
                 if (iR >= 0) { // The column is not yet full
+                    if (searchResult.getBestMoveSoFar()==null) searchResult.setBestMoveSoFar(iPos, searchResult.getBestScoreSoFar());
                     posNew.setColor(iPos, player);
                     int isWin = posNew.isWinner( iPos ); // iPos
                     float score;
@@ -52,22 +53,53 @@ public class Connect4Strategy implements InterfaceStrategy {
                                 score -= 2*uncertaintyPenalty;
                             }
                         } else { 
+                        	 // We cannot recurse further down the minimax search
                             // We cannot recurse further down the minimax search
-                            score = -uncertaintyPenalty;
+                        	//play n random boards, collect score
+                        	int numWin = 0;
+                        	int numLose = 0;
+                        	int numDraws = 0;
+                        	float total_plays = 10.0f; //change this if we ever want to play less or more
+                        	for (int i = 0; i < total_plays; i++) {
+                        		int winner = playRandomlyUntilEnd(posNew,player);
+                        		//ok, we have an end state.
+                        		if (winner == player) {
+                        			//we win!
+                        			numWin++;
+                        		} else if (winner == opponent) {
+                        			//we lose!
+                        			numLose++;
+                        		}else {
+                        			numDraws++;
+                        		}
+                        	}
+                            score = (numWin - numLose - numDraws) / total_plays;
+//                            score = -uncertaintyPenalty;
                             searchResult.setIsResultFinal(false);
                         }
                     }
     
-                    if (searchResult.getBestScoreSoFar() <  score ) {
+                    if (searchResult.getBestMoveSoFar()  == null ||
+                    	searchResult.getBestScoreSoFar() <  score ) {
                         searchResult.setBestMoveSoFar(iPos, score );
                         if ( score == 1f ) break; // No need to search further if one can definitely win
                     }
                 }
                 long timeNow = System.nanoTime();
                 if ( context.getMaxSearchTimeForThisPos() - timeNow <= 0 ) {
-                    //System.out.println("Connect4Strategy:getBestMove(): ran out of time: maxTime("
-                    //        +context.getMaxSearchTimeForThisPos()+") :time("
-                    //        +timeNow+"): recDepth("+context.getCurrentDepth()+")");
+//                    System.out.println("Connect4Strategy:getBestMove(): ran out of time: maxTime("
+//                            +context.getMaxSearchTimeForThisPos()+") :time("
+//                            +timeNow+"): recDepth("+context.getCurrentDepth()+")");
+                    if (context.getCurrentDepth()==0) {
+                        // Revert back to a lesser search
+                        System.out.print("Connect4Strategy: Depth limit of "+context.getMinDepthSearchForThisPos()+" -> ");
+                        context.setMinDepthSearchForThisPos(context.getMinDepthSearchForThisPos()-1);
+                        System.out.println(context.getMinDepthSearchForThisPos());
+                    }
+                    if ( ((Connect4SearchContext)context).getOriginalPlayer() == opponent ) { // TODO: add to interface
+                        searchResult.setBestMoveSoFar(searchResult.getBestMoveSoFar(), 0.95f); // Set to original opponent almost-win
+                    }
+                    searchResult.setIsResultFinal(false);
                     break; // Need to make any move now
                 }
             }
@@ -77,9 +109,13 @@ public class Connect4Strategy implements InterfaceStrategy {
 
         }
         
+        //if we haven't run out of time yet, then increase the depth
+        long timeLeftInNanoSeconds = context.getMaxSearchTimeForThisPos() - System.nanoTime();
         if (context.getCurrentDepth()== 0 && !searchResult.isResultFinal() && 
-                context.getMaxSearchTimeForThisPos() - System.nanoTime() > 500000000 ) { // over half a second
+                timeLeftInNanoSeconds > ((Connect4SearchContext)context).getOriginalTimeLimit()*9/10 ) { // TODO: add to interface
+            System.out.print("Connect4StrategyB: Depth limit of "+context.getMinDepthSearchForThisPos()+" -> ");
             context.setMinDepthSearchForThisPos(context.getMinDepthSearchForThisPos()+1);
+            System.out.println(context.getMinDepthSearchForThisPos());
             InterfaceSearchResult anotherResult = getBestMove(position,context);
             if (anotherResult.getBestScoreSoFar() > searchResult.getBestScoreSoFar()) {
                 searchResult.setBestMoveSoFar(anotherResult.getBestMoveSoFar(), anotherResult.getBestScoreSoFar());
@@ -89,7 +125,43 @@ public class Connect4Strategy implements InterfaceStrategy {
         
         return searchResult;
     }
-
+    public int playRandomlyUntilEnd(InterfacePosition pos, int player) {
+    	//strategy for this code: while the position is not an ending position,
+    	//keep making random moves until someone wins, then return the score
+    	//the calling code calls this 100 times, and computes how many times are win
+    	//vs how many times are loss, over 100
+    	//draws are taken out of the equation
+    	//this should never be called starting from a position with no fillable spots
+    	int current_player = 3 - player;
+        InterfacePosition posNew = new Connect4Position( pos);
+    	while (posNew.isWinner() == -1) {
+    		//find a position that is playable by iterating through the columns
+    		boolean isFillable = false;
+    		int final_iC = -1;
+    		int final_iR = -1;
+            InterfaceIterator iPos   = new Connect4Iterator( posNew.nC(), posNew.nR() );
+    		while (!isFillable) {
+                int  nRandom = rand.nextInt(posNew.nC()); //generate random integer for column
+                iPos.set(nRandom, 0); //check the first row associated to the column
+                int iR = posNew.nR() - posNew.getChipCount(iPos) - 1; //see if the column isn't full           
+                iPos.set(nRandom,iR);
+                if (iR >= 0) {
+                	//it's fillable, so let's put something in it
+                	isFillable = true;
+                	final_iR = iR;
+                	final_iC = nRandom;
+                	break; //defensive programming
+                }
+    		}
+    		//we have a playable position, let's play it
+    		posNew.setPlayer(current_player);
+    		iPos.set(final_iC,final_iR);
+    		posNew.setColor(iPos, current_player);
+    		current_player = 3 - current_player;
+    	}
+    	return posNew.isWinner();
+    }
+    
     @Override
     public void setContext(InterfaceSearchContext strategyContext) {
         // Not used in this strategy
@@ -104,10 +176,12 @@ public class Connect4Strategy implements InterfaceStrategy {
 
 class Connect4SearchContext implements InterfaceSearchContext {
     
-    long maxTime; // Cut off all calculations by this time (System.nanoTime())
+    long timeLimit; // Original time limit
+    long maxTime;   // Cut off all calculations by this time (System.nanoTime())
     int  minSearchDepth;
     int  maxSearchDepth;
     int    currentDepth;
+    int  originalPlayer;
 
     @Override
     public int getCurrentDepth() {
@@ -146,8 +220,24 @@ class Connect4SearchContext implements InterfaceSearchContext {
     }
 
     @Override
-    public void setMaxSearchTimeForThisPos(long maxTime) {
-        this.maxTime = maxTime;
+    public void setMaxSearchTimeForThisPos(long timeLimit) {
+        this.timeLimit =                        timeLimit;
+        this.maxTime   = System.nanoTime()    + timeLimit;
+    }
+
+    //TODO: PUT THIS IN THE INTERFACE @Override
+    public long getOriginalTimeLimit() {
+        return timeLimit;
+    }
+
+    //TODO: PUT THIS IN THE INTERFACE @Override
+    public int getOriginalPlayer() {
+        return originalPlayer;
+    }
+
+    //TODO: PUT THIS IN THE INTERFACE @Override
+    public void setOriginalPlayer(int player) {
+        originalPlayer = player;
     }
 
 }
@@ -212,7 +302,7 @@ class Connect4SearchResult implements InterfaceSearchResult {
     @Override
     public float getOpponentBestScoreOnPreviousMoveSoFar() {
         // Not used in this strategy
-        return 0;
+        return 0/0;
     }
 
     @Override
