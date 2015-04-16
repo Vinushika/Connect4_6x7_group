@@ -1,7 +1,6 @@
 package c_minimax;
 
 import java.io.File;
-import java.util.TreeMap;
 
 import org.mapdb.DB;
 import org.mapdb.DBMaker;
@@ -11,12 +10,6 @@ import org.mapdb.Serializer;
 //author: Gary Kalmanovich; rights reserved
 
 public class Connect4StrategyB implements InterfaceStrategy {
-	TreeMap<Long, Integer> checkedPositions = new TreeMap<Long, Integer>(); // minor
-																			// slowdown
-																			// @16.7
-																			// million
-																			// (try
-																			// mapDB?)
 
 	static DB db = DBMaker.fileDB(new File("scores.db")) // or memory db
 			.cacheSize(1000000) // optionally change cache size
@@ -45,12 +38,10 @@ public class Connect4StrategyB implements InterfaceStrategy {
 	public InterfaceSearchResult negamax(InterfacePosition position, InterfaceSearchContext context, float alpha, float beta) {
 		InterfaceSearchResult searchResult = new Connect4SearchResult(); // Return
 																			// information
-
-		Integer checkedResult = checkedPositions.get(position.getRawPosition());
-		if (checkedResult != null) {
-			searchResult.setClassStateFromCompacted(checkedResult);
+		Integer s = map.get(position.getRawPosition());
+		if (s != null) {
+			searchResult.setClassStateFromCompacted(s);
 		} else { // position is not hashed, so let's see if we can process it
-
 			int player = position.getPlayer();
 			int opponent = 3 - player; // There are two players, 1 and 2.
 
@@ -78,64 +69,60 @@ public class Connect4StrategyB implements InterfaceStrategy {
 					} else if (isWin == opponent) {
 						score = -1f; // Loss
 					} else { // Game is not over, so check further down the game
-						Integer s = map.get(posNew.getRawPosition());
-						if (s != null) {
-							score = s;
-						} else {
-							if (context.getCurrentDepth() < context.getMaxDepthSearchForThisPos() && context.getCurrentDepth() < context.getMinDepthSearchForThisPos()) {
-								posNew.setPlayer(opponent);
-								context.setCurrentDepth(context.getCurrentDepth() + 1);
-								InterfaceSearchResult opponentResult = negamax(posNew, context, -beta, -alpha);
-								context.setCurrentDepth(context.getCurrentDepth() - 1);
-								score = -opponentResult.getBestScoreSoFar();
-								// Note, for player, opponent's best move has
-								// negative worth
-								// That is because, score = ((probability of
-								// win) -
-								// (probability of loss))
 
-								if (opponentResult.isResultFinal() == false) { // if
-																				// the
-																				// result
-																				// is
-																				// not
-																				// final,
-																				// reverse
-																				// penalty
-									searchResult.setIsResultFinal(false);
-									score -= 2 * uncertaintyPenalty;
-								}
-							} else {
-								// We cannot recurse further down the minimax
-								// search
-								// We cannot recurse further down the minimax
-								// search
-								// play n random boards, collect score
-								int numWin = 0;
-								int numLose = 0;
-								int numDraws = 0;
-								float total_plays = 30.0f; // change this if we
-															// ever
-															// want to play less
-															// or
-															// more
-								for (int i = 0; i < total_plays; i++) {
-									int winner = playRandomlyUntilEnd(posNew, player);
-									// ok, we have an end state.
-									if (winner == player) {
-										// we win!
-										numWin++;
-									} else if (winner == opponent) {
-										// we lose!
-										numLose++;
-									} else {
-										numDraws++;
-									}
-								}
-								score = (numWin - numLose) / total_plays;
-								// score = -uncertaintyPenalty;
+						if (context.getCurrentDepth() < context.getMaxDepthSearchForThisPos() && context.getCurrentDepth() < context.getMinDepthSearchForThisPos()) {
+							posNew.setPlayer(opponent);
+							context.setCurrentDepth(context.getCurrentDepth() + 1);
+							InterfaceSearchResult opponentResult = negamax(posNew, context, -beta, -alpha);
+							context.setCurrentDepth(context.getCurrentDepth() - 1);
+							score = -opponentResult.getBestScoreSoFar();
+							// Note, for player, opponent's best move has
+							// negative worth
+							// That is because, score = ((probability of
+							// win) -
+							// (probability of loss))
+
+							if (opponentResult.isResultFinal() == false) { // if
+																			// the
+																			// result
+																			// is
+																			// not
+																			// final,
+																			// reverse
+																			// penalty
 								searchResult.setIsResultFinal(false);
+								score -= 2 * uncertaintyPenalty;
 							}
+						} else {
+							// We cannot recurse further down the minimax
+							// search
+							// We cannot recurse further down the minimax
+							// search
+							// play n random boards, collect score
+							int numWin = 0;
+							int numLose = 0;
+							int numDraws = 0;
+							float total_plays = 30.0f; // change this if we
+														// ever
+														// want to play less
+														// or
+														// more
+							for (int i = 0; i < total_plays; i++) {
+								int winner = playRandomlyUntilEnd(posNew, player);
+								// ok, we have an end state.
+								if (winner == player) {
+									// we win!
+									numWin++;
+								} else if (winner == opponent) {
+									// we lose!
+									numLose++;
+								} else {
+									numDraws++;
+								}
+							}
+							score = (numWin - numLose) / total_plays;
+							// score = -uncertaintyPenalty;
+							searchResult.setIsResultFinal(false);
 						}
 					}
 
