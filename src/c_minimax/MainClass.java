@@ -31,12 +31,6 @@ public class MainClass extends Application {
 
 		// System.setProperty("prism.dirtyopts", "false");
 		launch(args);
-
-		System.out.println("Closing database...");
-		Connect4StrategyB.db.commit();
-		Connect4StrategyB.db.close();
-		System.out.println("Done.");
-
 	}
 
 	@Override

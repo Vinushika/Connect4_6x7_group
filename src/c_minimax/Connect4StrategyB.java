@@ -11,9 +11,7 @@ import org.mapdb.Serializer;
 
 public class Connect4StrategyB implements InterfaceStrategy {
 
-	static DB db = DBMaker.fileDB(new File("scores.db")) // or memory db
-			.cacheSize(1000000) // optionally change cache size
-			.make();
+	static DB db = DBMaker.fileDB(new File("scores.db")).cacheSize(1000000).closeOnJvmShutdown().make();
 	static HTreeMap<Long, Integer> map = db.createHashMap("map").keySerializer(Serializer.LONG).valueSerializer(Serializer.INTEGER).makeOrGet();
 
 	FastRandomizer rand = new FastRandomizer(); // One can seed with a parameter
@@ -32,7 +30,9 @@ public class Connect4StrategyB implements InterfaceStrategy {
 
 	@Override
 	public InterfaceSearchResult getBestMove(InterfacePosition position, InterfaceSearchContext context) {
-		return negamax(position, context, Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY);
+		InterfaceSearchResult isr = negamax(position, context, Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY);
+		db.commit();
+		return isr;
 	}
 
 	public InterfaceSearchResult negamax(InterfacePosition position, InterfaceSearchContext context, float alpha, float beta) {
