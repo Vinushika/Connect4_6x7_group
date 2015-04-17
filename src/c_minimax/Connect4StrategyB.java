@@ -102,7 +102,7 @@ public class Connect4StrategyB implements InterfaceStrategy {
 							int numWin = 0;
 							int numLose = 0;
 							int numDraws = 0;
-							float total_plays = 30.0f; // change this if we
+							float total_plays = 50.0f; // change this if we
 														// ever
 														// want to play less
 														// or
