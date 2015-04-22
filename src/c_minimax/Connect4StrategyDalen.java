@@ -36,7 +36,7 @@ public class Connect4StrategyDalen implements InterfaceStrategy {
 
 	Connect4StrategyDalen() {
 		int seed = rand.nextInt();
-		System.out.println("Connect4StrategyB: Seed set to: " + seed);
+		System.out.println("Connect4StrategyDalen: Seed set to: " + seed);
 		rand.setSeed(seed);
 	}
 
@@ -145,11 +145,11 @@ public class Connect4StrategyDalen implements InterfaceStrategy {
 				}
 				long timeNow = System.nanoTime();
 				if (context.getMaxSearchTimeForThisPos() - timeNow <= 0) {
-					System.out.println("Connect4StrategyB:getBestMove(): ran out of time: maxTime(" + context.getMaxSearchTimeForThisPos() + ") :time(" + timeNow + "): recDepth("
+					System.out.println("Connect4StrategyDalen:getBestMove(): ran out of time: maxTime(" + context.getMaxSearchTimeForThisPos() + ") :time(" + timeNow + "): recDepth("
 							+ context.getCurrentDepth() + ")");
 					if (context.getCurrentDepth() == 0) {
 						// Revert back to a lesser search
-						System.out.print("Connect4StrategyB: Depth limit of " + context.getMinDepthSearchForThisPos() + " -> ");
+						System.out.print("Connect4StrategyDalen: Depth limit of " + context.getMinDepthSearchForThisPos() + " -> ");
 						context.setMinDepthSearchForThisPos(context.getMinDepthSearchForThisPos() - 1);
 						System.out.println(context.getMinDepthSearchForThisPos());
 					}
@@ -179,7 +179,7 @@ public class Connect4StrategyDalen implements InterfaceStrategy {
 																																											// add
 																																											// to
 																																											// interface
-			System.out.print("Connect4StrategyB: Depth limit of " + context.getMinDepthSearchForThisPos() + " -> ");
+			System.out.print("Connect4StrategyDalen: Depth limit of " + context.getMinDepthSearchForThisPos() + " -> ");
 			context.setMinDepthSearchForThisPos(context.getMinDepthSearchForThisPos() + 1);
 			System.out.println(context.getMinDepthSearchForThisPos());
 			InterfaceSearchResult anotherResult = getBestMove(position, context);
